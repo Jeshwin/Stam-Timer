@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide BoxDecoration, BoxShadow;
 import 'package:flutter_inset_shadow/flutter_inset_shadow.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -15,37 +16,27 @@ class TimerInterface extends StatefulWidget {
   State<TimerInterface> createState() => _TimerInterfaceState();
 }
 
-class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObserver {
+class _TimerInterfaceState extends State<TimerInterface>
+    with WidgetsBindingObserver {
   Timer? _timer;
   int _timeRemaining = 1500; // Initialize with 25 minutes in seconds
   bool _isRunning = false;
   int _currentCycleIndex = 0;
-  int _totalCycles = 4;
   List<TimerType> _timerSequence = [];
-  
+
   int _workDuration = 25;
   int _shortBreakDuration = 5;
   int _longBreakDuration = 15;
+  int _totalCycles = 4;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _generateInitialTimerSequence();
     _loadSettingsAndInitialize();
     _checkBackgroundTimer();
-  }
-
-  void _generateInitialTimerSequence() {
-    _timerSequence = [];
-    for (int i = 0; i < _totalCycles; i++) {
-      _timerSequence.add(TimerType.work);
-      if (i == _totalCycles - 1) {
-        _timerSequence.add(TimerType.longBreak);
-      } else {
-        _timerSequence.add(TimerType.shortBreak);
-      }
-    }
+    // Clear any background timer when manually pausing
+    BackgroundTimerService.clearBackgroundTimer();
   }
 
   @override
@@ -58,29 +49,43 @@ class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObse
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
-    print('📱 APP LIFECYCLE CHANGED: $state');
-    print('   Timer running: $_isRunning');
-    print('   Time remaining: $_timeRemaining');
-    print('   Current timer index: $_currentCycleIndex');
-    
+
+    if (kDebugMode) {
+      print('📱 APP LIFECYCLE CHANGED: $state');
+      print('   Timer running: $_isRunning');
+      print('   Time remaining: $_timeRemaining');
+      print('   Current timer index: $_currentCycleIndex');
+    }
+
     switch (state) {
       case AppLifecycleState.inactive:
-      case AppLifecycleState.paused:
-        print('🔒 App going to background/inactive');
+        if (kDebugMode) {
+          print('🔒 App going to background/inactive');
+        }
         if (_isRunning) {
-          print('⏰ Timer is running, saving to background...');
+          if (kDebugMode) {
+            print('⏰ Timer is running, saving to background...');
+          }
           _saveTimerToBackground();
         } else {
-          print('⏸️ Timer not running, no background save needed');
+          if (kDebugMode) {
+            print('⏸️ Timer not running, no background save needed');
+          }
         }
         break;
+      case AppLifecycleState.hidden:
+        _timer?.cancel();
+        break;
       case AppLifecycleState.resumed:
-        print('🔓 App resumed, checking background timer...');
+        if (kDebugMode) {
+          print('🔓 App resumed, checking background timer...');
+        }
         _checkBackgroundTimer();
         break;
       default:
-        print('🔄 Other lifecycle state: $state');
+        if (kDebugMode) {
+          print('🔄 Other lifecycle state: $state');
+        }
         break;
     }
   }
@@ -91,7 +96,7 @@ class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObse
         remainingTimeSeconds: _timeRemaining,
         currentTimerIndex: _currentCycleIndex,
       );
-      
+
       await BackgroundTimerService.scheduleNotification(
         remainingTimeSeconds: _timeRemaining,
         timerType: _currentTimerType,
@@ -102,17 +107,19 @@ class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObse
 
   Future<void> _checkBackgroundTimer() async {
     // Check if notification was tapped
-    final tappedTimerIndex = await BackgroundTimerService.checkNotificationTapped();
+    final tappedTimerIndex =
+        await BackgroundTimerService.checkNotificationTapped();
     if (tappedTimerIndex != null) {
       _handleNotificationTap(tappedTimerIndex);
       return;
     }
 
     // Check if there was a background timer running
-    final backgroundResult = await BackgroundTimerService.checkBackgroundTimer();
+    final backgroundResult =
+        await BackgroundTimerService.checkBackgroundTimer();
     if (backgroundResult != null) {
       await BackgroundTimerService.clearBackgroundTimer();
-      
+
       if (backgroundResult.wasCompleted) {
         // Timer finished in background, advance to next timer
         _handleTimerCompletion(backgroundResult.timerIndex);
@@ -152,8 +159,11 @@ class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObse
   void _syncWithBackgroundTimer(BackgroundTimerResult result) {
     setState(() {
       _currentCycleIndex = result.timerIndex;
-      _timeRemaining = result.remainingTime.clamp(0, _currentTimerDuration * 60);
-      _isRunning = false; // Pause when returning to app
+      _timeRemaining = result.remainingTime.clamp(
+        0,
+        _currentTimerDuration * 60,
+      );
+      _isRunning = true; // Keep going when returning to app
     });
   }
 
@@ -191,7 +201,9 @@ class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObse
     }
   }
 
-  TimerType get _currentTimerType => _timerSequence.isNotEmpty ? _timerSequence[_currentCycleIndex] : TimerType.work;
+  TimerType get _currentTimerType => _timerSequence.isNotEmpty
+      ? _timerSequence[_currentCycleIndex]
+      : TimerType.work;
 
   int get _currentTimerDuration {
     switch (_currentTimerType) {
@@ -206,7 +218,7 @@ class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObse
 
   void _startTimer() {
     if (_timeRemaining <= 0) return;
-    
+
     setState(() {
       _isRunning = true;
     });
@@ -235,7 +247,6 @@ class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObse
     // Clear any background timer when manually pausing
     BackgroundTimerService.clearBackgroundTimer();
   }
-
 
   void _skipTimer() {
     _timer?.cancel();
@@ -358,10 +369,10 @@ class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObse
             final isCurrent = _isLedCurrent(index);
             final isCurrentAndPaused = _isLedCurrentAndPaused(index);
             final ledColor = _getLedColor(index);
-            
+
             Color displayColor;
             List<BoxShadow>? boxShadows;
-            
+
             if (isCompleted) {
               // Completed timers: full brightness
               displayColor = ledColor;
@@ -397,7 +408,7 @@ class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObse
               displayColor = const Color(0xFFDDDDDD);
               boxShadows = null;
             }
-            
+
             return Container(
               width: 12,
               height: 12,
