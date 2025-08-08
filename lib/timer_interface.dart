@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'dart:async';
 import 'settings.dart';
 import 'control_button.dart';
+import 'background_timer_service.dart';
 
 enum TimerType { work, shortBreak, longBreak }
 
@@ -14,7 +15,7 @@ class TimerInterface extends StatefulWidget {
   State<TimerInterface> createState() => _TimerInterfaceState();
 }
 
-class _TimerInterfaceState extends State<TimerInterface> {
+class _TimerInterfaceState extends State<TimerInterface> with WidgetsBindingObserver {
   Timer? _timer;
   int _timeRemaining = 1500; // Initialize with 25 minutes in seconds
   bool _isRunning = false;
@@ -29,8 +30,10 @@ class _TimerInterfaceState extends State<TimerInterface> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _generateInitialTimerSequence();
     _loadSettingsAndInitialize();
+    _checkBackgroundTimer();
   }
 
   void _generateInitialTimerSequence() {
@@ -47,8 +50,111 @@ class _TimerInterfaceState extends State<TimerInterface> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    print('📱 APP LIFECYCLE CHANGED: $state');
+    print('   Timer running: $_isRunning');
+    print('   Time remaining: $_timeRemaining');
+    print('   Current timer index: $_currentCycleIndex');
+    
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+        print('🔒 App going to background/inactive');
+        if (_isRunning) {
+          print('⏰ Timer is running, saving to background...');
+          _saveTimerToBackground();
+        } else {
+          print('⏸️ Timer not running, no background save needed');
+        }
+        break;
+      case AppLifecycleState.resumed:
+        print('🔓 App resumed, checking background timer...');
+        _checkBackgroundTimer();
+        break;
+      default:
+        print('🔄 Other lifecycle state: $state');
+        break;
+    }
+  }
+
+  Future<void> _saveTimerToBackground() async {
+    if (_timeRemaining > 0 && _isRunning) {
+      await BackgroundTimerService.saveBackgroundTimer(
+        remainingTimeSeconds: _timeRemaining,
+        currentTimerIndex: _currentCycleIndex,
+      );
+      
+      await BackgroundTimerService.scheduleNotification(
+        remainingTimeSeconds: _timeRemaining,
+        timerType: _currentTimerType,
+        currentTimerIndex: _currentCycleIndex,
+      );
+    }
+  }
+
+  Future<void> _checkBackgroundTimer() async {
+    // Check if notification was tapped
+    final tappedTimerIndex = await BackgroundTimerService.checkNotificationTapped();
+    if (tappedTimerIndex != null) {
+      _handleNotificationTap(tappedTimerIndex);
+      return;
+    }
+
+    // Check if there was a background timer running
+    final backgroundResult = await BackgroundTimerService.checkBackgroundTimer();
+    if (backgroundResult != null) {
+      await BackgroundTimerService.clearBackgroundTimer();
+      
+      if (backgroundResult.wasCompleted) {
+        // Timer finished in background, advance to next timer
+        _handleTimerCompletion(backgroundResult.timerIndex);
+      } else {
+        // Timer still running, sync with background time
+        _syncWithBackgroundTimer(backgroundResult);
+      }
+    }
+  }
+
+  void _handleNotificationTap(int finishedTimerIndex) {
+    setState(() {
+      // Move to next timer after the one that finished
+      if (finishedTimerIndex < _timerSequence.length - 1) {
+        _currentCycleIndex = finishedTimerIndex + 1;
+      } else {
+        _currentCycleIndex = 0; // Reset to beginning
+      }
+      _timeRemaining = _currentTimerDuration * 60;
+      _isRunning = false; // Start paused as requested
+    });
+  }
+
+  void _handleTimerCompletion(int completedTimerIndex) {
+    setState(() {
+      // Move to next timer
+      if (completedTimerIndex < _timerSequence.length - 1) {
+        _currentCycleIndex = completedTimerIndex + 1;
+      } else {
+        _currentCycleIndex = 0; // Reset to beginning
+      }
+      _timeRemaining = _currentTimerDuration * 60;
+      _isRunning = false; // Start paused
+    });
+  }
+
+  void _syncWithBackgroundTimer(BackgroundTimerResult result) {
+    setState(() {
+      _currentCycleIndex = result.timerIndex;
+      _timeRemaining = result.remainingTime.clamp(0, _currentTimerDuration * 60);
+      _isRunning = false; // Pause when returning to app
+    });
   }
 
   Future<void> _loadSettingsAndInitialize() async {
@@ -97,7 +203,6 @@ class _TimerInterfaceState extends State<TimerInterface> {
         return _longBreakDuration;
     }
   }
-  set _currentTimerDuration(int value) => _currentTimerDuration = value;
 
   void _startTimer() {
     if (_timeRemaining <= 0) return;
@@ -127,6 +232,8 @@ class _TimerInterfaceState extends State<TimerInterface> {
     setState(() {
       _isRunning = false;
     });
+    // Clear any background timer when manually pausing
+    BackgroundTimerService.clearBackgroundTimer();
   }
 
 
@@ -147,6 +254,8 @@ class _TimerInterfaceState extends State<TimerInterface> {
       _isRunning = false;
       _currentCycleIndex = 0;
     });
+    // Clear any background timer when resetting
+    BackgroundTimerService.clearBackgroundTimer();
     // Reload settings and reset timer
     _loadSettingsAndInitialize();
   }

@@ -3,8 +3,11 @@ import 'package:flutter_inset_shadow/flutter_inset_shadow.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'settings.dart';
 import 'timer_interface.dart';
+import 'background_timer_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await BackgroundTimerService.initialize();
   runApp(const StamFocusApp());
 }
 
