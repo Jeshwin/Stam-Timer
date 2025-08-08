@@ -11,6 +11,7 @@ This is "Stam Focus" - a skeumorphic Pomodoro timer Flutter application. The pro
 ### Core Flutter Commands
 - **Run the app**: `flutter run`
 - **Build for release**: `flutter build apk` (Android) or `flutter build ios` (iOS)
+  - ***DO NOT RUN BUILD***
 - **Run tests**: `flutter test`
 - **Analyze code**: `flutter analyze`
 - **Format code**: `dart format lib/ test/`
