@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'settings.dart';
 import 'timer_interface.dart';
 import 'background_timer_service.dart';
+import 'color_palettes.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,23 +35,39 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  late TimerInterface _timerInterface;
+  TimerGradientPalette _timerPalette = ColorPalettes.timerGradients[0];
+  BackgroundPalette _backgroundPalette = ColorPalettes.backgrounds[0];
+  Key _timerKey = UniqueKey();
 
   @override
   void initState() {
     super.initState();
-    _timerInterface = const TimerInterface();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final colorIndex = await SettingsService.getTimerColorIndex();
+    final backgroundIndex = await SettingsService.getBackgroundIndex();
+    setState(() {
+      _timerPalette = ColorPalettes.getTimerGradient(colorIndex);
+      _backgroundPalette = ColorPalettes.getBackground(backgroundIndex);
+    });
+  }
+
+  Future<void> _refreshAll() async {
+    await _loadSettings();
+    setState(() {
+      _timerKey = UniqueKey(); // This forces the TimerInterface to rebuild
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           image: DecorationImage(
-            image: AssetImage(
-              'assets/images/wood-veneer-2354-in-architextures.jpg',
-            ),
+            image: AssetImage(_backgroundPalette.assetPath),
             fit: BoxFit.cover,
           ),
         ),
@@ -63,10 +80,10 @@ class _MainPageState extends State<MainPage> {
                   height: 300,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFFE3E8E6), Color(0xFFABBAB2)],
+                      colors: [_timerPalette.startColor, _timerPalette.endColor],
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -100,7 +117,7 @@ class _MainPageState extends State<MainPage> {
                       ),
                     ],
                   ),
-                  child: _timerInterface,
+                  child: TimerInterface(key: _timerKey),
                 ),
               ),
               Positioned(
@@ -114,10 +131,8 @@ class _MainPageState extends State<MainPage> {
                         builder: (context) => const SettingsPage(),
                       ),
                     );
-                    // Reload the timer interface by rebuilding the widget
-                    setState(() {
-                      _timerInterface = const TimerInterface();
-                    });
+                    // Automatically refresh everything when returning from settings
+                    await _refreshAll();
                   },
                   icon: Icon(
                     LucideIcons.settings,

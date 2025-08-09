@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart' hide BoxDecoration, BoxShadow;
 import 'package:flutter_inset_shadow/flutter_inset_shadow.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'color_palettes.dart';
 
 class SettingsService {
   static const String _workDurationKey = 'work_duration';
   static const String _shortBreakDurationKey = 'short_break_duration';
   static const String _longBreakDurationKey = 'long_break_duration';
   static const String _cyclesKey = 'cycles';
+  static const String _timerColorKey = 'timer_color';
+  static const String _ledColorKey = 'led_color';
+  static const String _backgroundKey = 'background';
 
   static Future<int> getWorkDuration() async {
     final prefs = await SharedPreferences.getInstance();
@@ -47,6 +51,36 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_cyclesKey, cycles);
   }
+
+  static Future<int> getTimerColorIndex() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_timerColorKey) ?? 0;
+  }
+
+  static Future<int> getLedColorIndex() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_ledColorKey) ?? 0;
+  }
+
+  static Future<void> setTimerColorIndex(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_timerColorKey, index);
+  }
+
+  static Future<void> setLedColorIndex(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_ledColorKey, index);
+  }
+
+  static Future<int> getBackgroundIndex() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_backgroundKey) ?? 0;
+  }
+
+  static Future<void> setBackgroundIndex(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_backgroundKey, index);
+  }
 }
 
 class SettingsPage extends StatefulWidget {
@@ -61,6 +95,9 @@ class _SettingsPageState extends State<SettingsPage> {
   int _shortBreakDuration = 5;
   int _longBreakDuration = 15;
   int _cycles = 4;
+  int _timerColorIndex = 0;
+  int _ledColorIndex = 0;
+  int _backgroundIndex = 0;
 
   @override
   void initState() {
@@ -73,12 +110,18 @@ class _SettingsPageState extends State<SettingsPage> {
     final shortBreakDuration = await SettingsService.getShortBreakDuration();
     final longBreakDuration = await SettingsService.getLongBreakDuration();
     final cycles = await SettingsService.getCycles();
+    final timerColorIndex = await SettingsService.getTimerColorIndex();
+    final ledColorIndex = await SettingsService.getLedColorIndex();
+    final backgroundIndex = await SettingsService.getBackgroundIndex();
 
     setState(() {
       _workDuration = workDuration;
       _shortBreakDuration = shortBreakDuration;
       _longBreakDuration = longBreakDuration;
       _cycles = cycles;
+      _timerColorIndex = timerColorIndex;
+      _ledColorIndex = ledColorIndex;
+      _backgroundIndex = backgroundIndex;
     });
   }
 
@@ -98,14 +141,26 @@ class _SettingsPageState extends State<SettingsPage> {
     SettingsService.setCycles(value);
   }
 
+  void _saveTimerColorAsync(int value) {
+    SettingsService.setTimerColorIndex(value);
+  }
+
+  void _saveLedColorAsync(int value) {
+    SettingsService.setLedColorIndex(value);
+  }
+
+  void _saveBackgroundAsync(int value) {
+    SettingsService.setBackgroundIndex(value);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           image: DecorationImage(
             image: AssetImage(
-              'assets/images/wood-veneer-2354-in-architextures.jpg',
+              ColorPalettes.getBackground(_backgroundIndex).assetPath,
             ),
             fit: BoxFit.cover,
           ),
@@ -196,11 +251,47 @@ class _SettingsPageState extends State<SettingsPage> {
                     ]),
                     const SizedBox(height: 16),
                     _buildSectionCard('Customization', [
-                      _buildPlaceholderSetting('Timer Color', 'Green'),
-                      _buildPlaceholderSetting('LED Color', 'Green'),
-                      _buildPlaceholderSetting(
+                      _buildDropdownSetting(
+                        'Timer Color',
+                        ColorPalettes.timerGradients[_timerColorIndex].name,
+                        ColorPalettes.timerGradients.map((e) => e.name).toList(),
+                        (String? value) {
+                          if (value != null) {
+                            final index = ColorPalettes.getTimerGradientIndex(value);
+                            setState(() {
+                              _timerColorIndex = index;
+                            });
+                            _saveTimerColorAsync(index);
+                          }
+                        },
+                      ),
+                      _buildDropdownSetting(
+                        'LED Color',
+                        ColorPalettes.ledColors[_ledColorIndex].name,
+                        ColorPalettes.ledColors.map((e) => e.name).toList(),
+                        (String? value) {
+                          if (value != null) {
+                            final index = ColorPalettes.getLedColorIndex(value);
+                            setState(() {
+                              _ledColorIndex = index;
+                            });
+                            _saveLedColorAsync(index);
+                          }
+                        },
+                      ),
+                      _buildDropdownSetting(
                         'Background Wood Type',
-                        'Oak Veneer',
+                        ColorPalettes.backgrounds[_backgroundIndex].name,
+                        ColorPalettes.backgrounds.map((e) => e.name).toList(),
+                        (String? value) {
+                          if (value != null) {
+                            final index = ColorPalettes.getBackgroundIndex(value);
+                            setState(() {
+                              _backgroundIndex = index;
+                            });
+                            _saveBackgroundAsync(index);
+                          }
+                        },
                       ),
                     ]),
                   ],
@@ -292,6 +383,52 @@ class _SettingsPageState extends State<SettingsPage> {
               max: max,
               divisions: ((max - min) / increment).round(),
               onChanged: (double value) => onChanged(value),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownSetting(
+    String title,
+    String currentValue,
+    List<String> options,
+    Function(String?) onChanged,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey[300]!),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: currentValue,
+                isExpanded: true,
+                items: options.map((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
+                onChanged: onChanged,
+              ),
             ),
           ),
         ],

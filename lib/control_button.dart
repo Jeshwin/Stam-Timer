@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart' hide BoxDecoration, BoxShadow;
 import 'package:flutter_inset_shadow/flutter_inset_shadow.dart';
+import 'color_palettes.dart';
 
 Widget buildControlButton(
   IconData icon,
-  VoidCallback onPressed, {
+  VoidCallback onPressed,
+  TimerGradientPalette timerPalette, {
   double size = 45,
   double iconSize = 22,
 }) {
+
   return Container(
     width: size,
     height: size,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
-      gradient: const LinearGradient(
+      gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFFE3E8E6), Color(0xFFABBAB2)],
+        colors: [timerPalette.startColor, timerPalette.endColor],
       ),
       boxShadow: [
         BoxShadow(
@@ -42,7 +45,7 @@ Widget buildControlButton(
       icon: Icon(
         icon,
         size: iconSize,
-        color: Colors.black.withValues(alpha: 0.7),
+        color: timerPalette.iconColor.withValues(alpha: 0.7),
       ),
     ),
   );

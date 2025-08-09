@@ -6,6 +6,7 @@ import 'dart:async';
 import 'settings.dart';
 import 'control_button.dart';
 import 'background_timer_service.dart';
+import 'color_palettes.dart';
 
 enum TimerType { work, shortBreak, longBreak }
 
@@ -28,6 +29,9 @@ class _TimerInterfaceState extends State<TimerInterface>
   int _shortBreakDuration = 5;
   int _longBreakDuration = 15;
   int _totalCycles = 4;
+  
+  TimerGradientPalette _timerPalette = ColorPalettes.timerGradients[0];
+  LedColorPalette _ledPalette = ColorPalettes.ledColors[0];
 
   @override
   void initState() {
@@ -172,6 +176,8 @@ class _TimerInterfaceState extends State<TimerInterface>
     final shortBreakDuration = await SettingsService.getShortBreakDuration();
     final longBreakDuration = await SettingsService.getLongBreakDuration();
     final cycles = await SettingsService.getCycles();
+    final timerColorIndex = await SettingsService.getTimerColorIndex();
+    final ledColorIndex = await SettingsService.getLedColorIndex();
 
     // Cancel any running timer
     _timer?.cancel();
@@ -181,6 +187,8 @@ class _TimerInterfaceState extends State<TimerInterface>
       _shortBreakDuration = shortBreakDuration;
       _longBreakDuration = longBreakDuration;
       _totalCycles = cycles;
+      _timerPalette = ColorPalettes.getTimerGradient(timerColorIndex);
+      _ledPalette = ColorPalettes.getLedColor(ledColorIndex);
       _currentCycleIndex = 0; // Reset to beginning
       _generateTimerSequence();
       // Explicitly set time to work duration since we're at index 0
@@ -293,8 +301,7 @@ class _TimerInterfaceState extends State<TimerInterface>
   }
 
   Color _getLedColor(int index) {
-    // All LEDs are green now
-    return const Color(0xFF00FF00); // Green
+    return _ledPalette.activeColor;
   }
 
   bool _isLedActive(int index) {
@@ -327,7 +334,7 @@ class _TimerInterfaceState extends State<TimerInterface>
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF798F70),
+            color: _timerPalette.displayBackgroundColor,
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
@@ -430,18 +437,19 @@ class _TimerInterfaceState extends State<TimerInterface>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Reset button
-            buildControlButton(LucideIcons.rotateCcw, _resetToBeginning),
+            buildControlButton(LucideIcons.rotateCcw, _resetToBeginning, _timerPalette),
             const SizedBox(width: 16),
             // Play/Pause button - larger
             buildControlButton(
               _isRunning ? LucideIcons.pause : LucideIcons.play,
               _isRunning ? _pauseTimer : _startTimer,
+              _timerPalette,
               size: 60,
               iconSize: 30,
             ),
             const SizedBox(width: 16),
             // Skip button
-            buildControlButton(LucideIcons.skipForward, _skipTimer),
+            buildControlButton(LucideIcons.skipForward, _skipTimer, _timerPalette),
           ],
         ),
       ],
