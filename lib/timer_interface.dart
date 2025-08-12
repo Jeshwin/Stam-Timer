@@ -77,9 +77,9 @@ class _TimerInterfaceState extends State<TimerInterface>
           }
         }
         break;
-      case AppLifecycleState.hidden:
-        _timer?.cancel();
-        break;
+      // case AppLifecycleState.hidden:
+      //   _timer?.cancel();
+      //   break;
       case AppLifecycleState.resumed:
         if (kDebugMode) {
           print('🔓 App resumed, checking background timer...');
@@ -144,6 +144,7 @@ class _TimerInterfaceState extends State<TimerInterface>
       }
       _timeRemaining = _currentTimerDuration * 60;
       _isRunning = false; // Start paused as requested
+      _timer?.cancel();
     });
   }
 
